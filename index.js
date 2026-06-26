@@ -17,14 +17,13 @@ function isCrypto(ticker) {
 }
 
 async function getCryptoData(symbol) {
-  const pair = symbol.toUpperCase() + 'USDT';
-  const [priceRes, klineRes] = await Promise.all([
-    axios.get(`https://api.binance.com/api/v3/ticker/price?symbol=${pair}`),
-    axios.get(`https://api.binance.com/api/v3/klines?symbol=${pair}&interval=1d&limit=20`)
-  ]);
-  const price = parseFloat(priceRes.data.price);
-  const closes = klineRes.data.map(k => parseFloat(k[4]));
-  return { price, closes, symbol };
+  const id = symbol.toLowerCase();
+  const res = await axios.get(
+    `https://api.coingecko.com/api/v3/coins/${id}/market_chart?vs_currency=usd&days=20&interval=daily`
+  );
+  const closes = res.data.prices.map(p => p[1]);
+  const price = closes[closes.length - 1];
+  return { price, closes: closes.reverse(), symbol };
 }
 
 async function getStockData(symbol) {
