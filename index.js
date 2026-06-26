@@ -13,12 +13,27 @@ app.get('/', (req, res) => {
 const CRYPTO_LIST = ['BTC','ETH','BNB','SOL','XRP','ADA','DOGE','TON','TRX','AVAX','MATIC','DOT','LTC','SHIB','BCH'];
 
 const COINGECKO_IDS = {
-  BTC: 'bitcoin', ETH: 'ethereum', BNB: 'binancecoin',
-  SOL: 'solana', XRP: 'ripple', ADA: 'cardano',
-  DOGE: 'dogecoin', TON: 'the-open-network', TRX: 'tron',
-  AVAX: 'avalanche-2', MATIC: 'matic-network', DOT: 'polkadot',
-  LTC: 'litecoin', SHIB: 'shiba-inu', BCH: 'bitcoin-cash'
-};
+async function getCryptoData(symbol) {
+  const idMap = {
+    BTC: 'bitcoin', ETH: 'ethereum', BNB: 'binance-coin',
+    SOL: 'solana', XRP: 'xrp', ADA: 'cardano',
+    DOGE: 'dogecoin', TON: 'toncoin', TRX: 'tron',
+    AVAX: 'avalanche', MATIC: 'polygon', DOT: 'polkadot',
+    LTC: 'litecoin', SHIB: 'shiba-inu', BCH: 'bitcoin-cash'
+  };
+  const id = idMap[symbol.toUpperCase()];
+  if (!id) throw new Error('Unknown crypto');
+  
+  async function getCryptoData(symbol) {
+  const id = COINGECKO_IDS[symbol.toUpperCase()];
+  if (!id) throw new Error('Unknown crypto');
+  const res = await axios.get(
+    `https://api.coingecko.com/api/v3/coins/${id}/market_chart?vs_currency=usd&days=20&interval=daily`
+  );
+  const closes = res.data.prices.map(p => p[1]).reverse();
+  const price = closes[0];
+  return { price, closes, symbol };
+  }
 
 function isCrypto(ticker) {
   return CRYPTO_LIST.includes(ticker.toUpperCase());
