@@ -24,14 +24,24 @@ function isCrypto(ticker) {
   return CRYPTO_LIST.includes(ticker.toUpperCase());
 }
 
-async async function getCryptoData(symbol) {
-  const id = COINGECKO_IDS[symbol.toUpperCase()];
+async function getCryptoData(symbol) {
+  const idMap = {
+    BTC: 'bitcoin', ETH: 'ethereum', BNB: 'binance-coin',
+    SOL: 'solana', XRP: 'xrp', ADA: 'cardano',
+    DOGE: 'dogecoin', TON: 'toncoin', TRX: 'tron',
+    AVAX: 'avalanche', MATIC: 'polygon', DOT: 'polkadot',
+    LTC: 'litecoin', SHIB: 'shiba-inu', BCH: 'bitcoin-cash'
+  };
+  const id = idMap[symbol.toUpperCase()];
   if (!id) throw new Error('Unknown crypto');
-  const res = await axios.get(
-    `https://api.coingecko.com/api/v3/coins/${id}/market_chart?vs_currency=usd&days=20&interval=daily`
-  );
-  const closes = res.data.prices.map(p => p[1]).reverse();
-  const price = closes[0];
+  
+  const [priceRes, historyRes] = await Promise.all([
+    axios.get(`https://api.coincap.io/v2/assets/${id}`),
+    axios.get(`https://api.coincap.io/v2/assets/${id}/history?interval=d1`)
+  ]);
+  
+  const price = parseFloat(priceRes.data.data.priceUsd);
+  const closes = historyRes.data.data.slice(-20).map(p => parseFloat(p.priceUsd)).reverse();
   return { price, closes, symbol };
 }
 
