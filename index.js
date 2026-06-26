@@ -10,26 +10,36 @@ app.get('/', (req, res) => {
   res.send('TradeBot is running!');
 });
 
-const CRYPTO_SYMBOLS = ['BTC','ETH','BNB','SOL','XRP','ADA','DOGE','TON','TRX','AVAX','MATIC','DOT','LTC','SHIB','BCH'];
+const CRYPTO_LIST = ['BTC','ETH','BNB','SOL','XRP','ADA','DOGE','TON','TRX','AVAX','MATIC','DOT','LTC','SHIB','BCH'];
+
+const COINGECKO_IDS = {
+  BTC: 'bitcoin', ETH: 'ethereum', BNB: 'binancecoin',
+  SOL: 'solana', XRP: 'ripple', ADA: 'cardano',
+  DOGE: 'dogecoin', TON: 'the-open-network', TRX: 'tron',
+  AVAX: 'avalanche-2', MATIC: 'matic-network', DOT: 'polkadot',
+  LTC: 'litecoin', SHIB: 'shiba-inu', BCH: 'bitcoin-cash'
+};
 
 function isCrypto(ticker) {
-  return CRYPTO_SYMBOLS.includes(ticker.toUpperCase());
+  return CRYPTO_LIST.includes(ticker.toUpperCase());
 }
 
 async function getCryptoData(symbol) {
-  const id = symbol.toLowerCase();
+  const id = COINGECKO_IDS[symbol.toUpperCase()];
+  if (!id) throw new Error('Unknown crypto');
   const res = await axios.get(
     `https://api.coingecko.com/api/v3/coins/${id}/market_chart?vs_currency=usd&days=20&interval=daily`
   );
-  const closes = res.data.prices.map(p => p[1]);
-  const price = closes[closes.length - 1];
-  return { price, closes: closes.reverse(), symbol };
+  const closes = res.data.prices.map(p => p[1]).reverse();
+  const price = closes[0];
+  return { price, closes, symbol };
 }
 
 async function getStockData(symbol) {
   const apiKey = process.env.ALPHA_VANTAGE_KEY;
-  const url = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}&apikey=${apiKey}`;
-  const res = await axios.get(url);
+  const res = await axios.get(
+    `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}&apikey=${apiKey}`
+  );
   const timeSeries = res.data['Time Series (Daily)'];
   if (!timeSeries) throw new Error('Stock not found');
   const dates = Object.keys(timeSeries).slice(0, 20);
@@ -41,10 +51,9 @@ async function getStockData(symbol) {
 function calculateRSI(closes) {
   const period = 14;
   if (closes.length < period + 1) return null;
-  const reversed = [...closes].reverse();
   let gains = 0, losses = 0;
   for (let i = 1; i <= period; i++) {
-    const diff = reversed[i] - reversed[i - 1];
+    const diff = closes[i - 1] - closes[i];
     if (diff >= 0) gains += diff;
     else losses -= diff;
   }
@@ -57,8 +66,7 @@ function calculateRSI(closes) {
 
 function calculateMA(closes, period) {
   if (closes.length < period) return null;
-  const slice = closes.slice(0, period);
-  return slice.reduce((a, b) => a + b, 0) / period;
+  return closes.slice(0, period).reduce((a, b) => a + b, 0) / period;
 }
 
 async function getAISignal(symbol, price, rsi, ma7, ma14) {
@@ -70,7 +78,7 @@ RSI (14): ${rsi}
 MA7: $${ma7?.toFixed(2) || 'N/A'}
 MA14: $${ma14?.toFixed(2) || 'N/A'}
 
-Give a response in this exact format:
+Respond in this exact format:
 SIGNAL: [BUY/SELL/HOLD]
 REASON: [1-2 sentence explanation]
 RISK: [Low/Medium/High]`;
@@ -93,53 +101,34 @@ RISK: [Low/Medium/High]`;
 async function analyzeAsset(ticker) {
   const symbol = ticker.toUpperCase();
   let data;
-
   if (isCrypto(symbol)) {
     data = await getCryptoData(symbol);
   } else {
     data = await getStockData(symbol);
   }
-
   const { price, closes } = data;
   const rsi = calculateRSI(closes);
   const ma7 = calculateMA(closes, 7);
   const ma14 = calculateMA(closes, 14);
   const aiSignal = await getAISignal(symbol, price, rsi, ma7, ma14);
 
-  return `📊 *${symbol} Analysis*
-
-💰 Price: $${price.toFixed(2)}
-📈 RSI: ${rsi}
-📉 MA7: $${ma7?.toFixed(2) || 'N/A'}
-📉 MA14: $${ma14?.toFixed(2) || 'N/A'}
-
-🤖 AI Analysis:
-${aiSignal}`;
+  return `📊 *${symbol} Analysis*\n\n💰 Price: $${price.toFixed(2)}\n📈 RSI: ${rsi}\n📉 MA7: $${ma7?.toFixed(2) || 'N/A'}\n📉 MA14: $${ma14?.toFixed(2) || 'N/A'}\n\n🤖 AI Signal:\n${aiSignal}`;
 }
 
 app.post('/webhook', async (req, res) => {
   const userMessage = req.body.Body?.trim().toUpperCase();
   console.log(`Message: ${userMessage}`);
-
   let replyText = '';
-
   try {
     replyText = await analyzeAsset(userMessage);
   } catch (err) {
-    console.error(err.message);
-    replyText = `Sorry, I couldn't analyze *${userMessage}*. Try a valid ticker like BTC, ETH, AAPL, TSLA.`;
+    console.error('Error:', err.message);
+    replyText = `Sorry, I couldn't analyze *${userMessage}*. Try: BTC, ETH, AAPL, TSLA.`;
   }
-
-  const twiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Message>${replyText}</Message>
-</Response>`;
-
+  const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${replyText}</Message></Response>`;
   res.type('text/xml');
   res.send(twiml);
 });
 
 const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => {
-  console.log(`TradeBot running on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`TradeBot running on port ${PORT}`));
