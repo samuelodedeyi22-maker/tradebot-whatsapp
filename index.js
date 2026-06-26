@@ -122,7 +122,7 @@ app.post('/webhook', async (req, res) => {
   try {
     replyText = await analyzeAsset(userMessage);
   } catch (err) {
-    console.error('Error:', err.message);
+    console.error('Error:', err.message, err.response?.data);
     replyText = `Sorry, I couldn't analyze *${userMessage}*. Try: BTC, ETH, AAPL, TSLA.`;
   }
   const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${replyText}</Message></Response>`;
