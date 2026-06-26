@@ -24,7 +24,7 @@ function isCrypto(ticker) {
   return CRYPTO_LIST.includes(ticker.toUpperCase());
 }
 
-async function getCryptoData(symbol) {
+async async function getCryptoData(symbol) {
   const id = COINGECKO_IDS[symbol.toUpperCase()];
   if (!id) throw new Error('Unknown crypto');
   const res = await axios.get(
